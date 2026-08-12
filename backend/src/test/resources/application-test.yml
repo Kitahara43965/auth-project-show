@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: backend-test
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/my_auth_test
+    username: apple
+    password: 
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  thymeleaf:
+    cache: false
+
+jwt:
+  access-token-secret: test-access-secret-test-access-secret-test
+  refresh-token-secret: test-refresh-secret-test-refresh-secret
+  access-token-expiration: 10000
+  refresh-token-expiration: 600000
+
+cookie:
+  same-site: Lax
+  secure: false
+  access-token-max-age: 10000
+  refresh-token-max-age: 600000
+
+test:
+  user:
+    email-prefix: test-user
+    email-domain: example.com
+    password-prefix: Password
+    name-prefix: TestUser
