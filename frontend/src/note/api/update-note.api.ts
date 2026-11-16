@@ -1,9 +1,5 @@
-
 import type { NoteUpdateRequest } from
   "@/src/note/types/request/note-update-request.type";
-
-import type { NoteErrorResponse } from
-  "@/src/note/types/response/note-error-response.type";
 
 import { NoteApiError } from
   "@/src/note/error/note-api-error";
@@ -13,7 +9,7 @@ export const updateNote = async (
   noteUpdateRequest: NoteUpdateRequest
 ): Promise<void> => {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/note/${id}`,
+    `/api/note/${id}`,
     {
       method: "PUT",
       headers: {

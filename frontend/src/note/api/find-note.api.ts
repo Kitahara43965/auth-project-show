@@ -1,4 +1,3 @@
-
 import type { NoteResponse } 
   from "@/src/note/types/response/note-response.type";
 
@@ -6,7 +5,7 @@ export const findNote = async (
   id: number
 ): Promise<NoteResponse> => {
   const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/note/${id}`,
+    `/api/note/${id}`,
     {
       method: "GET",
       credentials: "include",
