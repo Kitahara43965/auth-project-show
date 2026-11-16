@@ -3,5 +3,6 @@
 (3-1) docker rm backend-postgres<br>
 (3-2) docker compose up -d --build<br>
 (4) .env_exampleをcopyして.envに変更<br>
-(5) npm install<br>
+(5-1) cd frontend<br>
+(5-2) npm install<br>
 (6) http://localhost:3000/loginにログイン
