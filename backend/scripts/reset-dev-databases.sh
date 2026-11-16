@@ -2,7 +2,14 @@
 
 set -e
 
-DATABASES=("my_auth" "my_auth_test")
+DATABASES=(
+    "user_db"
+    "audit_db"
+    "partition_db"
+    "user_db_test"
+    "audit_db_test"
+    "partition_db_test"
+)
 
 for DB in "${DATABASES[@]}"; do
     echo "Resetting $DB..."

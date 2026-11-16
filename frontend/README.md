@@ -57,3 +57,22 @@ $./gradlew test --tests "com.example.myauthapp.support.context.MyAuthAppApplicat
  Connections/Databases/my_authを確認<br>
  public<br>
  タブで「Properties」ではなく「Data」に入る<br>
+<br>
+<br>ブロックチェック
+my_auth_test=# SELECT
+    blocked.pid AS blocked_pid,
+    blocked.query AS blocked_query,
+    blocking.pid AS blocking_pid,
+    blocking.query AS blocking_query
+FROM pg_stat_activity blocked
+JOIN pg_stat_activity blocking
+    ON blocking.pid = ANY(pg_blocking_pids(blocked.pid))
+<br>
+reports/をhtmlでチェック<br>
+open build/reports/tests/test/index.html<br>
+
+import org.assertj.core.api.Assertions;<br>
+Assertions.setMaxStackTraceElementsDisplayed(200);<br>
+でエラーを多く出力できる（この場合200行）<br>
+
+//TODO PartitionOperationのStatus-で強制終了時のRunningを治せるようにしよう（audit側が完了してもエラーになることもあるかも）

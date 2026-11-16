@@ -3,14 +3,14 @@ package com.example.myauthapp.auth.controller;
 import com.example.myauthapp.auth.dto.RegisterRequest;
 import com.example.myauthapp.auth.dto.LoginRequest;
 import com.example.myauthapp.auth.service.AuthService;
-import com.example.myauthapp.auth.cookie.service.CookieService;
+import com.example.myauthapp.token.cookie.service.CookieService;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.validation.annotation.Validated;
 import com.example.myauthapp.auth.validation.group.ValidationSequence;
-import com.example.myauthapp.auth.cookie.enums.CookieType;
+import com.example.myauthapp.token.cookie.enums.CookieType;
 import com.example.myauthapp.auth.result.AuthResult;
 import com.example.myauthapp.auth.dto.AuthResponse;
 

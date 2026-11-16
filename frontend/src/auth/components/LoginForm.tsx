@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { getAuthBroadcastChannel } 
   from "@/src/auth/lib/auth-broadcast-channel/get-auth-broadcast-channel";
 import type { AuthResponse } from "@/src/auth/types/auth-response.type";
-import type { ErrorResponse } from "@/src/common/types/error-response.type";
-import type {ValidationDetail} from "@/src/common/types/validation-detail.type";
+import type { AuthErrorResponse } from "@/src/auth/types/auth-error-response.type";
+import type {AuthValidationDetail} from "@/src/auth/types/auth-validation-detail.type";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -23,9 +23,9 @@ export default function LoginForm() {
     const validationErrorMap: Record<string, string> = {};
     let response:Response|null = null;
     let authResponse:AuthResponse|null = null;
-    let errorResponse:ErrorResponse|null = null;
+    let authErrorResponse:AuthErrorResponse|null = null;
     let userId:number|null = null;
-    let validationDetails:ValidationDetail[]|null = null;
+    let authValidationDetails:AuthValidationDetail[]|null = null;
     const authBroadcastChannel =
             getAuthBroadcastChannel();
 
@@ -63,22 +63,24 @@ export default function LoginForm() {
 
       }else{//response.ok
          if(response instanceof Response){
-          errorResponse = await response.json();
+          authErrorResponse = await response.json();
         }//response
-        if(errorResponse){
-          validationDetails = errorResponse.validationDetails;
-          if(errorResponse.errorMessage){
-            setErrorMessage(errorResponse.errorMessage);
-          }//errorResponse.errorMessage
+        if(authErrorResponse){
+          authValidationDetails = authErrorResponse.authValidationDetails;
+          if(authErrorResponse.errorMessage){
+            setErrorMessage(authErrorResponse.errorMessage);
+          }//authErrorResponse.errorMessage
 
-          if(validationDetails){
-            validationDetails.forEach(validationDetail => {
-              validationErrorMap[validationDetail.field] = validationDetail.message;
+          if(authValidationDetails){
+            authValidationDetails.forEach(authValidationDetail => {
+              validationErrorMap[authValidationDetail.field] = authValidationDetail.message;
             });
             setErrors(validationErrorMap);
           }
-        }//errorResponse
+        }//authErrorResponse
       }//authResponse
+
+      console.log();
 
 
     } catch (error) {

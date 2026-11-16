@@ -19,9 +19,9 @@ public class CustomAuthenticationEntryPoint
 
     @Override
     public void commence(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            AuthenticationException authException
+        HttpServletRequest request,
+        HttpServletResponse response,
+        AuthenticationException authenticationException
     ) throws IOException {
 
 

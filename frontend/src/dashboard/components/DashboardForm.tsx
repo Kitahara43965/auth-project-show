@@ -5,7 +5,7 @@ import { clientApiFetch } from "@/src/common/lib/api/client-api-fetch";
 import { useEffect, useState } from "react";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import ClientRefreshTokenButton from "@/src/auth/components/ClientRefreshTokenButton";
+import NoteCreateForm from "@/src/note/components/NoteCreateForm"
 
 export default function DashboardForm() {
   const router = useRouter();
@@ -32,6 +32,6 @@ export default function DashboardForm() {
 
 
   return (
-      <ClientRefreshTokenButton />
+      <NoteCreateForm />
   );
 }

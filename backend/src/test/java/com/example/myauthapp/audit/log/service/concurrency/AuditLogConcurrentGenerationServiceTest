@@ -1,0 +1,115 @@
+package com.example.myauthapp.audit.log.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import com.example.myauthapp.audit.log.repository.discovery.AuditLogDiscoveryJdbcRepository;
+import com.example.myauthapp.audit.event.AuditEventType;
+import com.example.myauthapp.audit.result.AuditResult;
+import com.example.myauthapp.database.cleaner.TestDatabaseCleaner;
+import com.example.myauthapp.partition.factory.TestPartitionDataFactory;
+
+import com.example.myauthapp.partition.dto.PartitionContextGroup;
+import com.example.myauthapp.audit.log.factory.AuditLogPartitionContextGroupFactory;
+import com.example.myauthapp.partition.dto.TestPartitionEntryDataGroup;
+import com.example.myauthapp.audit.log.factory.TestAuditLogPartitionDefaultInsertRecordFactory;
+
+
+@ActiveProfiles("test")
+@SpringBootTest
+class AuditLogConcurrentGenerationServiceTest {
+
+    private static final int THREAD_COUNT = 1000;
+
+    @Autowired
+    private AuditLogSaveService auditLogSaveService;
+
+    @Autowired
+    private AuditLogDiscoveryJdbcRepository auditLogDiscoveryJdbcRepository;
+
+    @Autowired
+    private TestDatabaseCleaner testDatabaseCleaner;
+
+    @Autowired
+    private TestPartitionDataFactory testPartitionDataFactory;
+
+    @Autowired
+    private AuditLogPartitionContextGroupFactory auditLogPartitionContextGroupFactory;
+
+    @Autowired
+    private TestAuditLogPartitionDefaultInsertRecordFactory testAuditLogPartitionDefaultInsertRecordFactory;
+
+
+    @BeforeEach
+    void setUp() {
+        testDatabaseCleaner.resetAllDatabase();
+    }
+
+    @Test
+    void recordShouldCreateMultipleAuditRowCountConcurrently()
+        throws Exception {
+
+        Long actorId = testPartitionDataFactory.createPartitionUserId();
+
+        CountDownLatch startLatch =
+            new CountDownLatch(1);
+
+        ExecutorService executor =
+            Executors.newFixedThreadPool(THREAD_COUNT);
+
+        try {
+            List<Future<?>> futures =
+                new ArrayList<>();
+
+            for (int i = 0; i < THREAD_COUNT; i++) {
+
+                futures.add(
+                    executor.submit(() -> {
+
+                        try {
+                            startLatch.await();
+
+                            auditLogSaveService.record(
+                                AuditEventType.LOGIN,
+                                AuditResult.SUCCESS,
+                                actorId
+                            );
+
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new RuntimeException(e);
+                        }
+
+                        return null;
+                    })
+                );
+            }
+
+            // 20スレッドを一斉に開始
+            startLatch.countDown();
+
+            // 全スレッドの終了を待つ
+            for (Future<?> future : futures) {
+                future.get();
+            }
+
+        } finally {
+            executor.shutdown();
+        }
+
+        assertThat(auditLogDiscoveryJdbcRepository.countAuditLogRowCount())
+            .isEqualTo(THREAD_COUNT);
+    }
+}

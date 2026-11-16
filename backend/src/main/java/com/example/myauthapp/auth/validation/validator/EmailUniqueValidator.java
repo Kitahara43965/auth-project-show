@@ -1,6 +1,6 @@
 package com.example.myauthapp.auth.validation.validator;
 
-import com.example.myauthapp.user.repository.UserRepository;
+import com.example.myauthapp.user.repository.discovery.UserDiscoveryJdbcRepository;
 import com.example.myauthapp.auth.validation.annotation.EmailUnique;
 
 import jakarta.validation.ConstraintValidator;
@@ -9,29 +9,30 @@ import jakarta.validation.ConstraintValidatorContext;
 public class EmailUniqueValidator 
         implements ConstraintValidator<EmailUnique, String> {
 
-    private final UserRepository userRepository;
+    private final UserDiscoveryJdbcRepository userDiscoveryJdbcRepository;
 
-    public EmailUniqueValidator(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    public EmailUniqueValidator(UserDiscoveryJdbcRepository userDiscoveryJdbcRepository) {
+        this.userDiscoveryJdbcRepository = userDiscoveryJdbcRepository;
     }
 
 
     @Override
     public boolean isValid(
-            String email,
-            ConstraintValidatorContext context
+        String email,
+        ConstraintValidatorContext constraintValidatorContext
     ) {
         boolean hasValidationError = false;
-        boolean existsByEmail = userRepository.existsByEmail(email);
+        boolean doesUserExistByEmail 
+            = userDiscoveryJdbcRepository.doesUserExistByEmail(email);
 
         if (email == null || email.isBlank()) {
             hasValidationError = true;
         }else{//email
-            if(existsByEmail == false){
+            if(doesUserExistByEmail == false){
                 hasValidationError = true;
-            }else if(existsByEmail == true){
+            }else if(doesUserExistByEmail == true){
                 hasValidationError = false;
-            }//existsByEmail
+            }//doesUserExistByEmail
         }//email
 
         return hasValidationError;

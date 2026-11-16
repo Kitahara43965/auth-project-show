@@ -1,38 +1,36 @@
 package com.example.myauthapp.auth.service;
 
-import org.junit.jupiter.api.BeforeEach;
-import com.example.myauthapp.support.database.cleaner.TestDatabaseCleaner;
-import com.example.myauthapp.auth.dto.LoginRequest;
-import com.example.myauthapp.auth.dto.RegisterRequest;
-import com.example.myauthapp.auth.result.AuthResult;
-import com.example.myauthapp.auth.error.AuthError;
-import com.example.myauthapp.auth.exception.AuthException;
-import com.example.myauthapp.support.dto.TestUserData;
-import com.example.myauthapp.support.factory.TestUserFactory;
-import com.example.myauthapp.support.factory.TestRegisterRequestFactory;
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
-import com.example.myauthapp.audit.auditlog.entity.AuditLog;
-import com.example.myauthapp.audit.auditlog.repository.AuditLogRepository;
-import com.example.myauthapp.audit.event.AuditEventType;
-import com.example.myauthapp.audit.result.AuditResult;
-import com.example.myauthapp.user.repository.UserRepository;
-import com.example.myauthapp.support.util.TestUserUtils;
-import com.example.myauthapp.user.entity.User;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-
-
-
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.junit.jupiter.api.BeforeEach;
 
+import com.example.myauthapp.database.cleaner.TestDatabaseCleaner;
+import com.example.myauthapp.auth.dto.LoginRequest;
+import com.example.myauthapp.auth.dto.RegisterRequest;
+import com.example.myauthapp.auth.result.AuthResult;
+import com.example.myauthapp.auth.error.FieldAuthError;
+import com.example.myauthapp.web.auth.exception.AuthException;
+import com.example.myauthapp.user.factory.TestUserDTOFactory;
+import com.example.myauthapp.auth.factory.TestRegisterRequestFactory;
+import com.example.myauthapp.audit.log.dto.AuditLogDTO;
+import com.example.myauthapp.audit.log.repository.discovery.AuditLogDiscoveryJdbcRepository;
+import com.example.myauthapp.audit.event.AuditEventType;
+import com.example.myauthapp.audit.result.AuditResult;
+import com.example.myauthapp.user.repository.discovery.UserDiscoveryJdbcRepository;
+import com.example.myauthapp.auth.util.TestUserUtils;
+import com.example.myauthapp.user.dto.UserDTO;
+
+@ActiveProfiles("test")
 @SpringBootTest
-@Transactional
 class LoginAuthServiceTest {
 
     @Autowired
@@ -42,20 +40,20 @@ class LoginAuthServiceTest {
     private AuthService authService;
 
     @Autowired
-    private TestUserFactory testUserFactory;
+    private TestUserDTOFactory testUserDTOFactory;
 
     @Autowired
     private TestRegisterRequestFactory testRegisterRequestFactory;
 
     @Autowired
-    private AuditLogRepository auditLogRepository;
+    private AuditLogDiscoveryJdbcRepository auditLogDiscoveryJdbcRepository;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDiscoveryJdbcRepository userDiscoveryJdbcRepository;
 
     @BeforeEach
     void setup() {
-        testDatabaseCleaner.deleteAllDatabase();
+        testDatabaseCleaner.resetAllDatabase();
     }
 
 
@@ -104,15 +102,15 @@ class LoginAuthServiceTest {
             );
 
         // when
-        AuthException exception =
+        AuthException authException =
             assertThrows(
                 AuthException.class,
                 () -> authService.login(loginRequest)
             );
 
         // then
-        assertThat(exception.getAppError())
-            .isEqualTo(AuthError.INVALID_CREDENTIALS);
+        assertThat(authException.getAuthError())
+            .isEqualTo(FieldAuthError.INVALID_CREDENTIALS);
     }
 
     @Test
@@ -131,15 +129,15 @@ class LoginAuthServiceTest {
             );
 
         // when
-        AuthException exception =
+        AuthException authException =
             assertThrows(
                 AuthException.class,
                 () -> authService.login(loginRequest)
             );
 
         // then
-        assertThat(exception.getAppError())
-            .isEqualTo(AuthError.INVALID_CREDENTIALS);
+        assertThat(authException.getAuthError())
+            .isEqualTo(FieldAuthError.INVALID_CREDENTIALS);
     }
 
     @Test
@@ -153,15 +151,15 @@ class LoginAuthServiceTest {
             );
 
         // when
-        AuthException exception =
+        AuthException authException =
             assertThrows(
                 AuthException.class,
                 () -> authService.login(loginRequest)
             );
 
         // then
-        assertThat(exception.getAppError())
-            .isEqualTo(AuthError.AUTH_NO_EMAIL);
+        assertThat(authException.getAuthError())
+            .isEqualTo(FieldAuthError.AUTH_NO_EMAIL);
     }
 
 
@@ -187,18 +185,17 @@ class LoginAuthServiceTest {
         Long userId = authResult.getUserId();
 
         // then
-        AuditLog auditLog =
-            auditLogRepository
-                .findTopByActorIdOrderByOccurredAtDesc(userId)
-                .orElseThrow();
+        AuditLogDTO auditLogDTO =
+            auditLogDiscoveryJdbcRepository
+                .findAuditLogDTOByActorIdOrderByOccurredAtDesc(userId);
 
-        assertThat(auditLog.getAuditEventType())
+        assertThat(auditLogDTO.getAuditEventType())
             .isEqualTo(AuditEventType.LOGIN);
 
-        assertThat(auditLog.getAuditResult())
+        assertThat(auditLogDTO.getAuditResult())
             .isEqualTo(AuditResult.SUCCESS);
 
-        assertThat(auditLog.getActorId())
+        assertThat(auditLogDTO.getActorId())
             .isEqualTo(userId);
     }
 
@@ -213,9 +210,7 @@ class LoginAuthServiceTest {
             authService.register(registerRequest);
 
         Long userId = authResult.getUserId();
-        User user = userRepository
-            .findById(userId)
-            .orElseThrow();
+        UserDTO userDTO = userDiscoveryJdbcRepository.findUserDTOById(userId);
 
         LoginRequest loginRequest =
             new LoginRequest(
@@ -230,18 +225,17 @@ class LoginAuthServiceTest {
         );
 
         // then
-        AuditLog auditLog =
-            auditLogRepository
-                .findTopByActorIdOrderByOccurredAtDesc(user.getId())
-                .orElseThrow();
+        AuditLogDTO auditLogDTO =
+            auditLogDiscoveryJdbcRepository
+                .findAuditLogDTOByActorIdOrderByOccurredAtDesc(userDTO.getId());
 
-        assertThat(auditLog.getAuditEventType())
+        assertThat(auditLogDTO.getAuditEventType())
             .isEqualTo(AuditEventType.LOGIN);
 
-        assertThat(auditLog.getAuditResult())
+        assertThat(auditLogDTO.getAuditResult())
             .isEqualTo(AuditResult.FAILURE);
 
-        assertThat(auditLog.getActorId())
-            .isEqualTo(user.getId());
+        assertThat(auditLogDTO.getActorId())
+            .isEqualTo(userDTO.getId());
     }
 }

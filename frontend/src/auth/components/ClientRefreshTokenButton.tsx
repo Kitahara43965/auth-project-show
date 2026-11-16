@@ -10,15 +10,10 @@ export default function ClientRefreshTokenButton(){
     async function handleClick(){
 
         setLoading(true);
-
         try{
-
             await getClientUserResponse();
-
         }finally{
-
             setLoading(false);
-
         }
     }
 

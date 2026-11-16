@@ -1,10 +1,10 @@
 package com.example.myauthapp.auth.security;
 
-import com.example.myauthapp.auth.service.AccessTokenJwtService;
-import com.example.myauthapp.user.entity.User;
-import com.example.myauthapp.user.repository.UserRepository;
-import com.example.myauthapp.auth.cookie.enums.CookieType;
-import com.example.myauthapp.auth.cookie.reader.CookieReader;
+import com.example.myauthapp.token.jwttoken.service.AccessTokenJwtService;
+import com.example.myauthapp.user.dto.UserDTO;
+import com.example.myauthapp.user.repository.discovery.UserDiscoveryJdbcRepository;
+import com.example.myauthapp.token.cookie.enums.CookieType;
+import com.example.myauthapp.token.cookie.reader.CookieReader;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -25,17 +25,17 @@ import java.util.Optional;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final AccessTokenJwtService accessTokenJwtService;
-    private final UserRepository userRepository;
+    private final UserDiscoveryJdbcRepository userDiscoveryJdbcRepository;
     private final CookieReader cookieReader;
 
 
     public JwtAuthenticationFilter(
-            AccessTokenJwtService accessTokenJwtService,
-            UserRepository userRepository,
-            CookieReader cookieReader
+        AccessTokenJwtService accessTokenJwtService,
+        UserDiscoveryJdbcRepository userDiscoveryJdbcRepository,
+        CookieReader cookieReader
     ) {
         this.accessTokenJwtService = accessTokenJwtService;
-        this.userRepository = userRepository;
+        this.userDiscoveryJdbcRepository = userDiscoveryJdbcRepository;
         this.cookieReader = cookieReader;
     }
 
@@ -54,46 +54,62 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-            HttpServletRequest request,
-            HttpServletResponse response,
-            FilterChain chain
+        HttpServletRequest request,
+        HttpServletResponse response,
+        FilterChain chain
     ) throws IOException, ServletException {
-        String token = cookieReader.getTokenFromCookie(request,CookieType.ACCESS_TOKEN);
-        String email = null;
-        boolean isValid = false;
-        Optional<User> optionalUser = null;
-        User user = null;
-        Long userId = null;
-        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = null;
 
-        isValid = token != null && accessTokenJwtService.isValid(token);
+        String token =
+            cookieReader.getTokenFromCookie(
+                request,
+                CookieType.ACCESS_TOKEN
+            );
+
+        Long userId = null;
+        boolean isValid = false;
+        Optional<UserDTO> optionalUserDTO = null;
+        UserDTO userDTO = null;
+
+        UsernamePasswordAuthenticationToken
+            usernamePasswordAuthenticationToken = null;
+
+        isValid =
+            token != null
+            && accessTokenJwtService.isValid(token);
 
         if (isValid) {
 
-            email = accessTokenJwtService.extractEmail(token);
-            if(email != null){
-                optionalUser = userRepository.findByEmail(email);
-            }//email
+            userId =
+                accessTokenJwtService.extractUserId(token);
 
-            if(optionalUser != null && optionalUser.isPresent()){
+            optionalUserDTO =
+                userDiscoveryJdbcRepository.findOptionalUserDTOById(userId);
 
-                user = optionalUser.get();
-                userId = user.getId();
+            if (optionalUserDTO.isPresent()) {
 
-                usernamePasswordAuthenticationToken = 
+                userDTO = userDiscoveryJdbcRepository.findUserDTOByOptionalUserDTO(
+                    optionalUserDTO
+                );
+
+                usernamePasswordAuthenticationToken =
                     new UsernamePasswordAuthenticationToken(
-                        userId,
+                        userDTO.getId(),
                         null,
                         List.of()
                     );
 
-                if(SecurityContextHolder.getContext().getAuthentication() == null){
+                if (
                     SecurityContextHolder
                         .getContext()
-                        .setAuthentication(usernamePasswordAuthenticationToken);
-                }//SecurityContextHolder.getContext().getAuthentication()
-
-            }//optionalUser
+                        .getAuthentication() == null
+                ) {
+                    SecurityContextHolder
+                        .getContext()
+                        .setAuthentication(
+                            usernamePasswordAuthenticationToken
+                        );
+                }
+            }
         }
 
         chain.doFilter(request, response);

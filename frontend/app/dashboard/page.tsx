@@ -1,43 +1,41 @@
+import Link from "next/link";
+import { getServerUserResponse } from
+  "@/src/auth/services/get-server-user-response.service";
 
-import DashboardForm from "@/src/dashboard/components/DashboardForm";
-import {getServerUserResponse} from "@/src/auth/services/get-server-user-response.service";
-
-type Props = {
-  searchParams: Promise<{
-    reason?: string;
-  }>;
-};
-
-export default async function DashboardPage(
-  {searchParams}: Props
-) {
-  const params = await searchParams;
-  const reason = params.reason ?? null;
-  const userName = null;
-  const userResponse =
-    await getServerUserResponse();
+export default async function DashboardPage() {
+  const userResponse = await getServerUserResponse();
 
   if (!userResponse) {
-    return (
-      <p>
-        ログインしてください
-      </p>
-    );
+    return <p>ログインしてください</p>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
+    <main className="min-h-screen bg-gray-50 p-8">
       <div className="mx-auto max-w-4xl">
-        <h1 className="text-3xl font-bold mb-4">
+        <h1 className="mb-4 text-3xl font-bold">
           ダッシュボード
         </h1>
 
         <p className="mb-6 text-gray-700">
-          ログイン中:{userResponse.name} 
+          ログイン中: {userResponse.name}
         </p>
 
-        <DashboardForm/>
+        <div className="flex gap-4">
+          <Link
+            href="/dashboard/notes"
+            className="rounded bg-blue-600 px-5 py-3 text-white"
+          >
+            メモ一覧を見る
+          </Link>
+
+          <Link
+            href="/dashboard/notes/new"
+            className="rounded bg-green-600 px-5 py-3 text-white"
+          >
+            新しいメモを作成
+          </Link>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

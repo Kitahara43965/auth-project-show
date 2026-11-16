@@ -1,15 +1,19 @@
 package com.example.myauthapp.auth.controller;
 
-import com.example.myauthapp.auth.cookie.enums.CookieType;
-import com.example.myauthapp.auth.cookie.reader.CookieReader;
-import com.example.myauthapp.auth.cookie.service.CookieService;
-import com.example.myauthapp.auth.token.service.RefreshTokenService;
-import com.example.myauthapp.auth.token.service.RefreshTokenFamilyService;
-import com.example.myauthapp.auth.token.entity.RefreshToken;
-import com.example.myauthapp.auth.token.entity.RefreshTokenFamily;
+import com.example.myauthapp.token.cookie.enums.CookieType;
+import com.example.myauthapp.token.cookie.reader.CookieReader;
+import com.example.myauthapp.token.cookie.service.CookieService;
+import com.example.myauthapp.token.refreshtoken.service.RefreshTokenService;
+import com.example.myauthapp.token.refreshtoken.service.RefreshTokenFamilyService;
+import com.example.myauthapp.token.refreshtoken.dto.RefreshTokenDTO;
+import com.example.myauthapp.token.refreshtoken.dto.RefreshTokenFamilyDTO;
+import com.example.myauthapp.token.refreshtoken.repository.discovery
+    .RefreshTokenFamilyDiscoveryJdbcRepository;
+import com.example.myauthapp.token.refreshtoken.repository.revoke
+    .RefreshTokenRevokeJdbcRepository;
 import com.example.myauthapp.audit.result.AuditResult;
 import com.example.myauthapp.audit.event.AuditEventType;
-import com.example.myauthapp.audit.auditlog.service.AuditLogService;
+import com.example.myauthapp.audit.log.service.save.AuditLogSaveService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,27 +32,39 @@ public class LogoutController {
     private final CookieReader cookieReader;
     private final RefreshTokenService refreshTokenService;
     private final RefreshTokenFamilyService refreshTokenFamilyService;
-    private final AuditLogService auditLogService;
+    private final RefreshTokenFamilyDiscoveryJdbcRepository
+        refreshTokenFamilyDiscoveryJdbcRepository;
+    private final RefreshTokenRevokeJdbcRepository
+        refreshTokenRevokeJdbcRepository;
+    private final AuditLogSaveService auditLogSaveService;
 
     public LogoutController(
-            CookieService cookieService,
-            CookieReader cookieReader,
-            RefreshTokenService refreshTokenService,
-            RefreshTokenFamilyService refreshTokenFamilyService,
-            AuditLogService auditLogService
+        CookieService cookieService,
+        CookieReader cookieReader,
+        RefreshTokenService refreshTokenService,
+        RefreshTokenFamilyService refreshTokenFamilyService,
+        RefreshTokenFamilyDiscoveryJdbcRepository
+            refreshTokenFamilyDiscoveryJdbcRepository,
+        RefreshTokenRevokeJdbcRepository
+            refreshTokenRevokeJdbcRepository,
+        AuditLogSaveService auditLogSaveService
     ) {
         this.cookieService = cookieService;
         this.cookieReader = cookieReader;
         this.refreshTokenService = refreshTokenService;
         this.refreshTokenFamilyService = refreshTokenFamilyService;
-        this.auditLogService = auditLogService;
+        this.refreshTokenFamilyDiscoveryJdbcRepository =
+            refreshTokenFamilyDiscoveryJdbcRepository;
+        this.refreshTokenRevokeJdbcRepository =
+            refreshTokenRevokeJdbcRepository;
+        this.auditLogSaveService = auditLogSaveService;
     }
 
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            HttpServletRequest request,
-            HttpServletResponse response
+        HttpServletRequest request,
+        HttpServletResponse response
     ) {
         String stringRefreshToken =
             cookieReader.getTokenFromCookie(
@@ -56,39 +72,42 @@ public class LogoutController {
                 CookieType.REFRESH_TOKEN
             );
 
-        RefreshToken refreshToken = null;
-        RefreshTokenFamily refreshTokenFamily = null;
+        RefreshTokenDTO refreshTokenDTO = null;
+        RefreshTokenFamilyDTO refreshTokenFamilyDTO = null;
 
         if (stringRefreshToken != null) {
 
-            refreshToken =
-                refreshTokenService.getRefreshToken(
+            refreshTokenDTO =
+                refreshTokenService.getRefreshTokenDTOByStringRefreshToken(
                     stringRefreshToken
                 );
 
-            refreshTokenFamily =
-                refreshToken.getRefreshTokenFamily();
+            refreshTokenFamilyDTO =
+                refreshTokenFamilyDiscoveryJdbcRepository
+                    .findRefreshTokenFamilyDTOByRefreshTokenId(
+                        refreshTokenDTO.getId()
+                    );
 
-            refreshTokenService.revokeRefreshToken(
-                refreshToken
+            refreshTokenRevokeJdbcRepository.revokeRefreshTokenById(
+                refreshTokenDTO.getId()
             );
 
             refreshTokenFamilyService.revokeRefreshTokenFamily(
-                refreshTokenFamily
+                refreshTokenFamilyDTO.getId()
             );
 
-            auditLogService.record(
+            auditLogSaveService.record(
                 AuditEventType.LOGOUT,
-                refreshTokenFamily.getUser().getId(),
-                AuditResult.SUCCESS
+                AuditResult.SUCCESS,
+                refreshTokenFamilyDTO.getUserId()
             );
 
         } else {
 
-            auditLogService.record(
+            auditLogSaveService.record(
                 AuditEventType.LOGOUT,
-                null,
-                AuditResult.SUCCESS
+                AuditResult.SUCCESS,
+                null
             );
         }
 

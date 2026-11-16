@@ -1,4 +1,4 @@
-package com.example.myauthapp.auth.service;
+package com.example.myauthapp.audit.log.service.concurrency;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -6,24 +6,26 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.context.ActiveProfiles;
 
 import com.example.myauthapp.auth.dto.RegisterRequest;
-import com.example.myauthapp.auth.error.AuthError;
-import com.example.myauthapp.auth.exception.AuthException;
+import com.example.myauthapp.auth.error.FieldAuthError;
+import com.example.myauthapp.web.auth.exception.AuthException;
 import com.example.myauthapp.auth.result.AuthResult;
 
-import com.example.myauthapp.audit.auditlog.entity.AuditLog;
-import com.example.myauthapp.audit.auditlog.repository.AuditLogRepository;
+import com.example.myauthapp.audit.log.dto.AuditLogDTO;
+import com.example.myauthapp.audit.log.repository.discovery.AuditLogDiscoveryJdbcRepository;
 import com.example.myauthapp.audit.event.AuditEventType;
 import com.example.myauthapp.audit.result.AuditResult;
+import com.example.myauthapp.user.factory.TestUserDTOFactory;
 
-import com.example.myauthapp.support.database.cleaner.TestDatabaseCleaner;
-import com.example.myauthapp.support.factory.TestRegisterRequestFactory;
-import com.example.myauthapp.user.entity.User;
-import com.example.myauthapp.user.repository.UserRepository;
-import com.example.myauthapp.audit.auditlog.service.AuditLogService;
+import com.example.myauthapp.database.cleaner.TestDatabaseCleaner;
+import com.example.myauthapp.auth.factory.TestRegisterRequestFactory;
+import com.example.myauthapp.user.dto.UserDTO;
+import com.example.myauthapp.auth.service.AuthService;
+import com.example.myauthapp.user.repository.discovery.UserDiscoveryJdbcRepository;
+
 
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.*;
@@ -32,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
-@Transactional
+@ActiveProfiles("test")
 class RegisterAuthServiceTest {
 
     @Autowired
@@ -41,11 +43,9 @@ class RegisterAuthServiceTest {
     @Autowired
     private AuthService authService;
 
-    @Autowired
-    private UserRepository userRepository;
 
     @Autowired
-    private AuditLogRepository auditLogRepository;
+    private AuditLogDiscoveryJdbcRepository auditLogDiscoveryJdbcRepository;
 
     @Autowired
     private TestRegisterRequestFactory testRegisterRequestFactory;
@@ -54,11 +54,14 @@ class RegisterAuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private AuditLogService auditLogService;
+    private TestUserDTOFactory testUserDTOFactory;
+
+    @Autowired
+    private UserDiscoveryJdbcRepository userDiscoveryJdbcRepository;
 
     @BeforeEach
     void setup() {
-        testDatabaseCleaner.deleteAllDatabase();
+        testDatabaseCleaner.resetAllDatabase();
     }
 
     @Test
@@ -70,14 +73,18 @@ class RegisterAuthServiceTest {
         // 1回目
         authService.register(request);
 
+        // 1回目のregisterが戻った直後に確認
+        boolean exists = userDiscoveryJdbcRepository
+            .doesUserExistByEmail(request.getEmail());
+            
         // 2回目
-        AuthException exception = assertThrows(
+        AuthException authException = assertThrows(
             AuthException.class,
             () -> authService.register(request)
         );
 
-        assertThat(exception.getAppError())
-            .isEqualTo(AuthError.EMAIL_ALREADY_EXISTS);
+        assertThat(authException.getAuthError())
+            .isEqualTo(FieldAuthError.EMAIL_ALREADY_EXISTS);
     }
 
 
@@ -92,32 +99,31 @@ class RegisterAuthServiceTest {
             authService.register(registerRequest);
 
         // then
-        User user =
-            userRepository
-                .findByEmail(registerRequest.getEmail())
-                .orElseThrow();
+        UserDTO userDTO =
+            userDiscoveryJdbcRepository
+                .findUserDTOByEmail(registerRequest.getEmail());
 
-        assertThat(user.getId())
+        assertThat(userDTO.getId())
             .isNotNull();
 
-        assertThat(user.getEmail())
+        assertThat(userDTO.getEmail())
             .isEqualTo(registerRequest.getEmail());
 
         assertThat(
             passwordEncoder.matches(
                 registerRequest.getPassword(),
-                user.getPassword()
+                userDTO.getPassword()
             )
         ).isTrue();
 
-        assertThat(user.getName())
+        assertThat(userDTO.getName())
             .isEqualTo(registerRequest.getName());
 
         assertThat(authResult)
             .isNotNull();
 
         assertThat(authResult.getUserId())
-            .isEqualTo(user.getId());
+            .isEqualTo(userDTO.getId());
 
     }
 
@@ -131,25 +137,23 @@ class RegisterAuthServiceTest {
             authService.register(registerRequest);
 
         // then
-        User user =
-            userRepository
-                .findByEmail(registerRequest.getEmail())
-                .orElseThrow();
+        UserDTO userDTO =
+            userDiscoveryJdbcRepository
+                .findUserDTOByEmail(registerRequest.getEmail());
 
-        AuditLog auditLog =
-            auditLogRepository
-                .findTopByActorIdOrderByOccurredAtDesc(
-                    user.getId()
-                )
-                .orElseThrow();
+        AuditLogDTO auditLogDTO =
+            auditLogDiscoveryJdbcRepository
+                .findAuditLogDTOByActorIdOrderByOccurredAtDesc(
+                    userDTO.getId()
+                );
 
-        assertThat(auditLog.getAuditEventType())
+        assertThat(auditLogDTO.getAuditEventType())
             .isEqualTo(AuditEventType.REGISTER);
 
-        assertThat(auditLog.getAuditResult())
+        assertThat(auditLogDTO.getAuditResult())
             .isEqualTo(AuditResult.SUCCESS);
 
-        assertThat(auditLog.getActorId())
-            .isEqualTo(user.getId());
+        assertThat(auditLogDTO.getActorId())
+            .isEqualTo(userDTO.getId());
     }
 }

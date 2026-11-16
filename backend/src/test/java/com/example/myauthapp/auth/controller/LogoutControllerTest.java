@@ -15,38 +15,38 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.ActiveProfiles;
 
 import com.example.myauthapp.auth.dto.LoginRequest;
 import com.example.myauthapp.auth.dto.RegisterRequest;
 import com.example.myauthapp.auth.service.AuthService;
 
-import com.example.myauthapp.auth.token.entity.RefreshToken;
-import com.example.myauthapp.auth.token.entity.RefreshTokenFamily;
-import com.example.myauthapp.auth.token.repository.RefreshTokenRepository;
-import com.example.myauthapp.auth.token.repository.RefreshTokenFamilyRepository;
+import com.example.myauthapp.token.refreshtoken.dto.RefreshTokenDTO;
+import com.example.myauthapp.token.refreshtoken.dto.RefreshTokenFamilyDTO;
+import com.example.myauthapp.token.refreshtoken.repository.discovery
+    .RefreshTokenFamilyDiscoveryJdbcRepository;
+import com.example.myauthapp.token.refreshtoken.repository.discovery.RefreshTokenDiscoveryJdbcRepository;
 
-import com.example.myauthapp.audit.auditlog.entity.AuditLog;
-import com.example.myauthapp.audit.auditlog.repository.AuditLogRepository;
+import com.example.myauthapp.audit.log.dto.AuditLogDTO;
+import com.example.myauthapp.audit.log.repository.discovery.AuditLogDiscoveryJdbcRepository;
 import com.example.myauthapp.audit.event.AuditEventType;
 import com.example.myauthapp.audit.result.AuditResult;
 
-import com.example.myauthapp.support.database.cleaner.TestDatabaseCleaner;
-import com.example.myauthapp.support.factory.TestRegisterRequestFactory;
+import com.example.myauthapp.database.cleaner.TestDatabaseCleaner;
+import com.example.myauthapp.auth.factory.TestRegisterRequestFactory;
 
-import com.example.myauthapp.user.entity.User;
-import com.example.myauthapp.user.repository.UserRepository;
-import com.example.myauthapp.auth.cookie.enums.CookieType;
-import com.example.myauthapp.support.helper.TestAuthHelper;
-import com.example.myauthapp.support.helper.TestCookieHelper;
+import com.example.myauthapp.user.dto.UserDTO;
+import com.example.myauthapp.user.repository.discovery.UserDiscoveryJdbcRepository;
+import com.example.myauthapp.token.cookie.enums.CookieType;
+import com.example.myauthapp.auth.helper.TestAuthHelper;
+import com.example.myauthapp.token.cookie.helper.TestCookieHelper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-
+@ActiveProfiles("test")
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 class LogoutControllerTest {
 
     @Autowired
@@ -62,16 +62,17 @@ class LogoutControllerTest {
     private AuthService authService;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserDiscoveryJdbcRepository userDiscoveryJdbcRepository;
 
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    private RefreshTokenDiscoveryJdbcRepository refreshTokenDiscoveryJdbcRepository;
 
     @Autowired
-    private RefreshTokenFamilyRepository refreshTokenFamilyRepository;
+    private RefreshTokenFamilyDiscoveryJdbcRepository
+        refreshTokenFamilyDiscoveryJdbcRepository;
 
     @Autowired
-    private AuditLogRepository auditLogRepository;
+    private AuditLogDiscoveryJdbcRepository auditLogDiscoveryJdbcRepository;
 
     private TestAuthHelper testAuthHelper;
 
@@ -80,7 +81,7 @@ class LogoutControllerTest {
 
     @BeforeEach
     void setup() {
-        testDatabaseCleaner.deleteAllDatabase();
+        testDatabaseCleaner.resetAllDatabase();
         testAuthHelper = new TestAuthHelper(mockMvc);
         testCookieHelper = new TestCookieHelper();
     }
@@ -114,21 +115,21 @@ class LogoutControllerTest {
 
 
         Long userId =
-            userRepository
-                .findByEmail(registerRequest.getEmail())
-                .orElseThrow()
+            userDiscoveryJdbcRepository
+                .findUserDTOByEmail(registerRequest.getEmail())
                 .getId();
 
 
-        RefreshToken refreshToken =
-            refreshTokenRepository
-                .findTopByRefreshTokenFamily_User_IdOrderByCreatedAtDesc(userId)
-                .orElseThrow();
+        RefreshTokenDTO refreshTokenDTO =
+            refreshTokenDiscoveryJdbcRepository
+                .findTopRefreshTokenDTOByUserIdOrderByCreatedAtDesc(userId);
 
 
-        RefreshTokenFamily refreshTokenFamily =
-            refreshToken.getRefreshTokenFamily();
-
+        RefreshTokenFamilyDTO refreshTokenFamilyDTO =
+            refreshTokenFamilyDiscoveryJdbcRepository
+                .findRefreshTokenFamilyDTOByRefreshTokenId(
+                    refreshTokenDTO.getId()
+                );
 
         // when
 
@@ -141,21 +142,20 @@ class LogoutControllerTest {
 
         // then
 
-        RefreshToken revokedToken =
-            refreshTokenRepository
-                .findById(refreshToken.getId())
-                .orElseThrow();
+        RefreshTokenDTO revokedRefreshTokenDTO =
+            refreshTokenDiscoveryJdbcRepository
+                .findRefreshTokenDTOById(refreshTokenDTO.getId());
 
-        assertThat(revokedToken.isRevoked())
+        assertThat(revokedRefreshTokenDTO.isRevoked())
             .isTrue();
 
+        RefreshTokenFamilyDTO revokedRefreshTokenFamilyDTO =
+            refreshTokenFamilyDiscoveryJdbcRepository
+                .findRefreshTokenFamilyDTOById(
+                    refreshTokenFamilyDTO.getId()
+                );
 
-        RefreshTokenFamily revokedFamily =
-            refreshTokenFamilyRepository
-                .findById(refreshTokenFamily.getId())
-                .orElseThrow();
-
-        assertThat(revokedFamily.isRevoked())
+        assertThat(revokedRefreshTokenFamilyDTO.isRevoked())
             .isTrue();
     }
 
@@ -188,10 +188,9 @@ class LogoutControllerTest {
            );
 
 
-        User user =
-            userRepository
-                .findByEmail(registerRequest.getEmail())
-                .orElseThrow();
+        UserDTO userDTO =
+            userDiscoveryJdbcRepository
+                .findUserDTOByEmail(registerRequest.getEmail());
 
 
         // when
@@ -205,20 +204,19 @@ class LogoutControllerTest {
 
         // then
 
-        AuditLog auditLog =
-            auditLogRepository
-                .findTopByActorIdOrderByOccurredAtDesc(user.getId())
-                .orElseThrow();
+        AuditLogDTO auditLogDTO =
+            auditLogDiscoveryJdbcRepository
+                .findAuditLogDTOByActorIdOrderByOccurredAtDesc(userDTO.getId());
 
 
-        assertThat(auditLog.getAuditEventType())
+        assertThat(auditLogDTO.getAuditEventType())
             .isEqualTo(AuditEventType.LOGOUT);
 
-        assertThat(auditLog.getAuditResult())
+        assertThat(auditLogDTO.getAuditResult())
             .isEqualTo(AuditResult.SUCCESS);
 
-        assertThat(auditLog.getActorId())
-            .isEqualTo(user.getId());
+        assertThat(auditLogDTO.getActorId())
+            .isEqualTo(userDTO.getId());
     }
 
 
